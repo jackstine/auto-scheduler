@@ -164,3 +164,90 @@ python src/main.py
 ```
 
 Reads `config.yaml`, builds the LangGraph graph, and runs it.
+
+## Testing
+
+### Test Structure
+
+```
+tests/
+├── unit/
+│   ├── test_config.py
+│   ├── test_validate.py
+│   ├── test_utils.py
+│   ├── test_aggregate.py
+│   └── test_filter_sort.py
+└── integration/
+    ├── test_crawl.py
+    ├── test_parse_agent.py
+    ├── test_aggregator.py
+    └── test_pipeline.py
+```
+
+### Unit Tests
+
+**test_config.py**
+- Loads config from valid YAML
+- Falls back to defaults when file missing
+- Ignores unknown keys in YAML
+
+**test_validate.py**
+- Valid JSON array passes
+- Invalid JSON triggers retry (returns None)
+- Non-array JSON triggers retry (returns None)
+- Objects with unknown fields are rejected
+- Objects with missing optional fields pass
+- Empty array is valid
+- Markdown code fences are stripped before parsing
+
+**test_utils.py**
+- `url_to_filename` encodes URLs correctly
+- `filename_to_url` reverses back to URL
+- Round-trip consistency
+
+**test_aggregate.py**
+- Combines multiple JSON files into one list
+- Injects `source_url` from filename
+- Skips files that fail to read
+
+**test_filter_sort.py**
+- Removes events with dates before today
+- Keeps events with today's date
+- Sorts by date ascending, then time ascending
+- Handles missing date/time fields gracefully
+- Writes output file
+
+### Integration Tests
+
+These hit real external services and are slower. Run separately.
+
+**test_crawl.py**
+- Crawls a single URL and produces a markdown file in `output/crawled/`
+- Verifies file is non-empty
+
+**test_parse_agent.py**
+- Sends one crawled markdown file to OpenRouter agent
+- Validates the response is a JSON array of event objects
+- Verifies pre_validation and post_validation files are written
+
+**test_aggregator.py**
+- Crawl + parse 2-3 sites, then aggregate
+- Verify combined output has events from all sources
+- Verify `source_url` is injected correctly
+
+**test_pipeline.py**
+- End-to-end: runs full graph with `max_sites: 2`
+- Verifies `output/raw_output.json` exists, is valid JSON, sorted by date, no past events
+
+### Running Tests
+
+```bash
+# Unit tests only (fast, no external calls)
+uv run pytest tests/unit/ -v
+
+# Integration tests (requires OPENROUTER_API_KEY and network)
+uv run pytest tests/integration/ -v
+
+# All tests
+uv run pytest tests/ -v
+```
