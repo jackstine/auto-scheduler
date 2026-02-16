@@ -12,10 +12,10 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
 
 ### Stage 1: Crawl
 
-- Read URLs from `links.txt` (one URL per line, skip blanks)
-- Delete all files in `crawled_output/` before starting
+- Read URLs from `links.txt` (one URL per line, skip blanks, deduplicate)
+- Delete all files in `output/` before starting
 - For each URL, run the `crwl` CLI tool to download site content as markdown
-- Save each result to `crawled_output/<safe_filename>.md`
+- Save each result to `output/crawled/<safe_filename>.md`
 - If a crawl fails for a site, log the error and continue to the next site
 - Configurable: `max_sites` limits how many sites to crawl (for testing)
 
@@ -23,9 +23,10 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
 
 - For each crawled markdown file, invoke an LLM agent via OpenRouter
 - The agent receives the markdown content and a prompt instructing it to extract events as a JSON array
-- Agents run in parallel
+- Agents run in parallel (up to `max_concurrent_agents`)
 - The agent is prompted to return only a JSON array of event objects
 - The source URL is derived from the filename (reverse the filename encoding from crawl step)
+- Prompt template is stored in `prompts/parse_schedule.md`
 
 ### Stage 3: Validate
 
@@ -38,10 +39,13 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
     - Objects that fail validation are discarded; valid objects are kept
 - If the entire agent response fails validation (not valid JSON, not an array), retry with a fresh agent context
 - Configurable: `max_retries` (default: 3) — number of retry attempts per file before giving up
+- Raw agent responses saved to `output/parsed/pre_validation/`
+- Validated objects saved to `output/parsed/post_validation/`
 
 ### Stage 4: Aggregate
 
 - Combine all valid event objects from all parsed files into a single list
+- Inject `source_url` into each event object (derived from filename)
 
 ### Stage 5: Filter
 
@@ -50,7 +54,7 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
 ### Stage 6: Sort & Output
 
 - Sort remaining events by `date` ascending, then by `time` ascending
-- Write final JSON array to `schedule.json`
+- Write final JSON array to `output/raw_output.json`
 
 ## Data Model
 
@@ -62,7 +66,8 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
   "date": "2026-02-04",
   "time": "18:00",
   "time_zone": "CST",
-  "venue": "Cloudflare Office, 405 Comal St, Austin TX",
+  "venue": "Cloudflare Office",
+  "address": "405 Comal St, Austin TX",
   "event_url": "https://www.meetup.com/austin-langchain-ai-group/events/312282689/",
   "source_url": "https://www.meetup.com/austin-langchain-ai-group/",
   "description": "Monthly mixer with demos, talks, and networking"
@@ -77,7 +82,8 @@ links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggr
 | date        | string | yes      | Date of the event, format `YYYY-MM-DD`           |
 | time        | string | yes      | Time of the event, format `HH:MM` (24hr)         |
 | time_zone   | string | no       | Time zone abbreviation (e.g., CST, CDT)          |
-| venue       | string | no       | Venue name and/or address                        |
+| venue       | string | no       | Venue name                                       |
+| address     | string | no       | Address of the venue                             |
 | event_url   | string | no       | Direct link to the event page                    |
 | source_url  | string | no       | Link to the originating site that was crawled    |
 | description | string | no       | Brief description of the event                   |
@@ -88,19 +94,23 @@ Only the fields listed above are permitted on each event object. Any object cont
 
 ## Configuration
 
-### Config Specification
+Configuration is provided via `config.yaml`. Defaults are used when not specified.
 
-Configuration is provided via a config file or environment variables. Defaults are used when not specified.
+| Setting                | Type    | Default                  | Description                                          |
+|------------------------|---------|--------------------------|------------------------------------------------------|
+| links_file             | string  | `links.txt`              | Path to file containing URLs to crawl                |
+| output_dir             | string  | `output`                 | Directory for all output files                       |
+| max_sites              | integer | 0 (no limit)             | Max number of sites to crawl; 0 means all            |
+| max_retries            | integer | 3                        | Max retry attempts per agent on validation failure   |
+| max_concurrent_agents  | integer | 3                        | Max agents running in parallel                       |
+| model                  | string  | `openrouter/aurora-alpha` | LLM model identifier for OpenRouter                 |
+| crwl_command           | string  | `crwl`                   | CLI command used for crawling                        |
+| crwl_pyenv_version     | string  | `3.13.1`                 | pyenv version to use for crwl command                |
 
-| Setting          | Type    | Default                  | Description                                          |
-|------------------|---------|--------------------------|------------------------------------------------------|
-| links_file       | string  | `links.txt`              | Path to file containing URLs to crawl                |
-| crawled_output   | string  | `crawled_output/`        | Directory for crawled markdown files                 |
-| output_file      | string  | `schedule.json`          | Path for final JSON output                           |
-| max_sites        | integer | 0 (no limit)             | Max number of sites to crawl; 0 means all            |
-| max_retries      | integer | 3                        | Max retry attempts per agent on validation failure   |
-| model            | string  | `openrouter/aurora-alpha` | LLM model identifier for OpenRouter                 |
-| crwl_command     | string  | `crwl`                   | CLI command used for crawling                        |
+## Logging
+
+- All log output goes to `output/run.log` and stdout
+- Log entries include: timestamp, stage, site/file, outcome (success/fail/retry), event counts
 
 ## Input
 
@@ -108,4 +118,4 @@ Configuration is provided via a config file or environment variables. Defaults a
 
 ## Output
 
-- `schedule.json` — JSON array of event objects, sorted by date then time ascending, with past events excluded
+- `output/raw_output.json` — JSON array of event objects, sorted by date then time ascending, with past events excluded
