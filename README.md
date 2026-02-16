@@ -31,7 +31,9 @@ meetup.com/<org1>
 hackerspaceCity.com/events
 ```
 
-2. run
+2. add in [config.yaml](docs/config.md)
+
+3. run it
 
 ```bash
 uv run python -m src.main        # run the pipeline
@@ -49,7 +51,11 @@ uv run pytest tests/ -v -m ""     # everything
 
 ## Configuration
 
-Edit `config.yaml` to adjust settings:
+Copy the example and edit to taste. See [full config docs](docs/config.md) for details.
+
+```bash
+cp config.example.yaml config.yaml
+```
 
 | Setting                | Default                  | Description                        |
 |------------------------|--------------------------|------------------------------------|

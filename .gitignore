@@ -1,2 +1,11 @@
 .env
 .*.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+output/
+tests/output/
+
+# personal configuration file
+config.yaml
