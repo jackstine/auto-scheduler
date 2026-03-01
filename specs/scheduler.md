@@ -7,17 +7,27 @@ A LangGraph-based pipeline that crawls community event websites, extracts struct
 ## Pipeline
 
 ```
-links.txt → Crawl Sites → Parse (LLM agents, parallel) → Validate → Aggregate → Filter Past → Sort by Date → Output JSON
+links.txt → Crawl Sites (parallel, or skip) → Parse (LLM agents, parallel) → Validate → Aggregate → Filter Past → Sort by Date → Output JSON
 ```
 
 ### Stage 1: Crawl
 
 - Read URLs from `links.txt` (one URL per line, skip blanks, deduplicate)
-- Delete all files in `output/` before starting
+- Delete all files in `output/` before starting (unless `skip_crawl` is enabled)
+- All crawls run **concurrently** using async I/O, limited by `max_concurrent_crawls`
 - For each URL, run the `crwl` CLI tool to download site content as markdown
 - Save each result to `output/crawled/<safe_filename>.md`
 - If a crawl fails for a site, log the error and continue to the next site
 - Configurable: `max_sites` limits how many sites to crawl (for testing)
+- Configurable: `max_concurrent_crawls` limits how many crawls run in parallel (default: 5)
+
+#### Skip Crawl Mode
+
+- When `skip_crawl` is `true` (config) or `--skip-crawl` is passed on the command line, the crawl stage is skipped entirely
+- The pipeline reuses existing markdown files found in `output/crawled/`
+- The `output/` directory is **not** cleared — only `parsed/` subdirectories are reset
+- This is useful for re-running parsing/aggregation without re-downloading content
+- If `skip_crawl` is enabled but `output/crawled/` is empty or missing, the pipeline logs a warning and continues with an empty file list
 
 ### Stage 2: Parse
 
@@ -103,6 +113,8 @@ Configuration is provided via `config.yaml`. Defaults are used when not specifie
 | max_sites              | integer | 0 (no limit)             | Max number of sites to crawl; 0 means all            |
 | max_retries            | integer | 3                        | Max retry attempts per agent on validation failure   |
 | max_concurrent_agents  | integer | 3                        | Max agents running in parallel                       |
+| max_concurrent_crawls  | integer | 5                        | Max crawls running in parallel                       |
+| skip_crawl             | boolean | `false`                  | Skip crawling and reuse existing crawled files       |
 | model                  | string  | `openrouter/aurora-alpha` | LLM model identifier for OpenRouter                 |
 | crwl_command           | string  | `crwl`                   | CLI command used for crawling                        |
 | crwl_pyenv_version     | string  | `3.13.1`                 | pyenv version to use for crwl command                |
