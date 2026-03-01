@@ -8,7 +8,7 @@ Auto Scheduler crawls community event websites, extracts structured event data u
 
 ## How It Works
 
-1. **Crawl** — reads URLs from `links.txt`, downloads each site as markdown
+1. **Crawl** — reads URLs from `links.txt`, downloads each site as markdown **concurrently** (or skip with `--skip-crawl`)
 2. **Parse** — sends each markdown file to an LLM agent (via OpenRouter) to extract events as JSON
 3. **Validate** — checks agent output for valid JSON and schema compliance, retries on failure
 4. **Aggregate, Filter & Sort** — combines all events, removes past dates, sorts by date/time, writes output
@@ -36,8 +36,11 @@ hackerspaceCity.com/events
 3. run it
 
 ```bash
-uv run python -m src.main        # run the pipeline
+uv run python -m src.main            # run the full pipeline
+uv run python -m src.main --skip-crawl  # skip crawling, reuse existing files
 ```
+
+The `--skip-crawl` flag skips the crawl stage and reuses markdown files already in `output/crawled/`. Useful for re-running parsing without re-downloading.
 
 Output lands in `output/raw_output.json`. Logs go to `output/run.log` and stdout.
 
@@ -57,12 +60,14 @@ Copy the example and edit to taste. See [full config docs](docs/config.md) for d
 cp config.example.yaml config.yaml
 ```
 
-| Setting                | Default                  | Description                        |
-|------------------------|--------------------------|------------------------------------|
-| `max_sites`            | `0` (all)                | Limit sites to crawl (for testing) |
-| `max_retries`          | `3`                      | Agent retry attempts on failure    |
-| `max_concurrent_agents`| `3`                      | Parallel agent limit               |
-| `model`                | `openrouter/aurora-alpha` | OpenRouter model to use           |
+| Setting                | Default                            | Description                        |
+|------------------------|------------------------------------|------------------------------------|
+| `max_sites`            | `0` (all)                          | Limit sites to crawl (for testing) |
+| `max_retries`          | `3`                                | Agent retry attempts on failure    |
+| `max_concurrent_agents`| `3`                                | Parallel agent limit               |
+| `max_concurrent_crawls`| `5`                                | Parallel crawl limit               |
+| `skip_crawl`           | `false`                            | Skip crawling, reuse existing files|
+| `model`                | `arcee-ai/trinity-large-preview:free` | OpenRouter model to use         |
 
 ## Project Structure
 
