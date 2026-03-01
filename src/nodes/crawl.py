@@ -1,9 +1,9 @@
 """Crawl node: downloads site content as markdown using crwl CLI."""
 
+import asyncio
 import logging
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
 from src.config import Config
@@ -39,8 +39,58 @@ def skip_crawl(config: Config) -> list[str]:
     return crawled_files
 
 
+async def _crawl_single(url: str, filepath: Path, config: Config) -> str | None:
+    """Crawl a single URL asynchronously. Returns filepath on success, None on failure."""
+    try:
+        logger.info(f"Crawling: {url}")
+        env = {**os.environ}
+        if config.crwl_pyenv_version:
+            env["PYENV_VERSION"] = config.crwl_pyenv_version
+
+        proc = await asyncio.create_subprocess_exec(
+            config.crwl_command, "crawl", url, "-o", "markdown",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+
+        if proc.returncode != 0:
+            logger.error(f"Crawl failed for {url}: {stderr.decode()}")
+            return None
+
+        filepath.write_text(stdout.decode())
+        logger.info(f"Saved: {filepath}")
+        return str(filepath)
+
+    except asyncio.TimeoutError:
+        logger.error(f"Crawl timed out for {url}")
+        return None
+    except Exception as e:
+        logger.error(f"Crawl error for {url}: {e}")
+        return None
+
+
+async def _crawl_all_async(urls: list[str], config: Config, output_dir: Path) -> list[str]:
+    """Crawl all URLs concurrently with a semaphore limit."""
+    semaphore = asyncio.Semaphore(config.max_concurrent_crawls)
+
+    async def limited(url: str, filepath: Path) -> str | None:
+        async with semaphore:
+            return await _crawl_single(url, filepath, config)
+
+    tasks = []
+    for url in urls:
+        filename = url_to_filename(url) + ".md"
+        filepath = output_dir / "crawled" / filename
+        tasks.append(limited(url, filepath))
+
+    results = await asyncio.gather(*tasks)
+    return [r for r in results if r is not None]
+
+
 def crawl(config: Config) -> list[str]:
-    """Read links, crawl sites, return list of crawled file paths."""
+    """Read links, crawl sites concurrently, return list of crawled file paths."""
     if config.skip_crawl:
         return skip_crawl(config)
 
@@ -69,33 +119,9 @@ def crawl(config: Config) -> list[str]:
     if config.max_sites > 0:
         urls = urls[: config.max_sites]
 
-    logger.info(f"Crawling {len(urls)} sites")
+    logger.info(f"Crawling {len(urls)} sites concurrently (max {config.max_concurrent_crawls} parallel)")
 
-    crawled_files = []
-    for url in urls:
-        filename = url_to_filename(url) + ".md"
-        filepath = output_dir / "crawled" / filename
-        try:
-            logger.info(f"Crawling: {url}")
-            env = {**os.environ}
-            if config.crwl_pyenv_version:
-                env["PYENV_VERSION"] = config.crwl_pyenv_version
-            result = subprocess.run(
-                [config.crwl_command, "crawl", url, "-o", "markdown"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env=env,
-            )
-            if result.returncode != 0:
-                logger.error(f"Crawl failed for {url}: {result.stderr}")
-                continue
-            filepath.write_text(result.stdout)
-            crawled_files.append(str(filepath))
-            logger.info(f"Saved: {filepath}")
-        except Exception as e:
-            logger.error(f"Crawl error for {url}: {e}")
-            continue
+    crawled_files = asyncio.run(_crawl_all_async(urls, config, output_dir))
 
     logger.info(f"Crawled {len(crawled_files)}/{len(urls)} sites successfully")
     return crawled_files
