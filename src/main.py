@@ -1,5 +1,6 @@
 """Entry point for the event scheduler pipeline."""
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -29,12 +30,32 @@ def setup_logging(output_dir: str) -> None:
     )
 
 
-def main():
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Event scheduler pipeline")
+    parser.add_argument(
+        "--skip-crawl",
+        action="store_true",
+        default=False,
+        help="Skip crawling and reuse existing crawled files",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None):
+    args = parse_args(argv)
     config = load_config()
+
+    # CLI flag overrides config
+    if args.skip_crawl:
+        config.skip_crawl = True
+
     setup_logging(config.output_dir)
 
     logger = logging.getLogger(__name__)
     logger.info("Starting event scheduler pipeline")
+    if config.skip_crawl:
+        logger.info("Skip-crawl enabled: reusing existing crawled files")
 
     graph = build_graph()
     result = graph.invoke({

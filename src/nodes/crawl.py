@@ -12,15 +12,44 @@ from src.utils import url_to_filename
 logger = logging.getLogger(__name__)
 
 
+def _setup_output_dirs(output_dir: Path) -> None:
+    """Create output subdirectories for parsed results."""
+    for subdir in ["crawled", "parsed/pre_validation", "parsed/post_validation"]:
+        (output_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+
+def skip_crawl(config: Config) -> list[str]:
+    """Skip crawling and return existing crawled files."""
+    output_dir = Path(config.output_dir)
+    crawled_dir = output_dir / "crawled"
+
+    # Reset only parsed directories, preserve crawled files
+    for subdir in ["parsed/pre_validation", "parsed/post_validation"]:
+        target = output_dir / subdir
+        if target.exists():
+            shutil.rmtree(target)
+        target.mkdir(parents=True, exist_ok=True)
+
+    if not crawled_dir.exists() or not any(crawled_dir.iterdir()):
+        logger.warning("skip_crawl enabled but no crawled files found in %s", crawled_dir)
+        return []
+
+    crawled_files = sorted(str(p) for p in crawled_dir.glob("*.md"))
+    logger.info("skip_crawl: reusing %d existing crawled files", len(crawled_files))
+    return crawled_files
+
+
 def crawl(config: Config) -> list[str]:
     """Read links, crawl sites, return list of crawled file paths."""
+    if config.skip_crawl:
+        return skip_crawl(config)
+
     output_dir = Path(config.output_dir)
 
     # Clear output directory
     if output_dir.exists():
         shutil.rmtree(output_dir)
-    for subdir in ["crawled", "parsed/pre_validation", "parsed/post_validation"]:
-        (output_dir / subdir).mkdir(parents=True, exist_ok=True)
+    _setup_output_dirs(output_dir)
 
     # Read and deduplicate URLs
     links_path = Path(config.links_file)

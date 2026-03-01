@@ -13,7 +13,9 @@ class Config:
     max_sites: int = 0
     max_retries: int = 3
     max_concurrent_agents: int = 3
-    model: str = "openrouter/aurora-alpha"
+    max_concurrent_crawls: int = 5
+    skip_crawl: bool = False
+    model: str = "arcee-ai/trinity-large-preview:free"
     crwl_command: str = "crwl"
     crwl_pyenv_version: str = "3.13.1"
 

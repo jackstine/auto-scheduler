@@ -6,6 +6,8 @@ output_dir: output
 max_sites: 0                        # 0 = crawl all sites, set to 3 for testing
 max_retries: 3                      # retry agent on validation failure
 max_concurrent_agents: 3            # parallel LLM agent limit
-model: openrouter/aurora-alpha      # OpenRouter model identifier
+max_concurrent_crawls: 5            # parallel crawl limit
+skip_crawl: false                   # skip crawling, reuse existing crawled files
+model: arcee-ai/trinity-large-preview:free  # OpenRouter model identifier
 crwl_command: crwl                  # CLI crawler command
 crwl_pyenv_version: "3.13.1"       # pyenv version for crwl
