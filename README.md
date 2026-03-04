@@ -1,6 +1,6 @@
 # Auto Scheduler
 
-Using OpenRouter AI models to generate a scheduler for you.
+Using OpenRouter AI models to generate a scheduler for you. About 95% accurate. 
 
 ## Overview
 
