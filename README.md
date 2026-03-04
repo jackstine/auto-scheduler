@@ -68,6 +68,7 @@ cp config.example.yaml config.yaml
 | `max_concurrent_crawls`| `5`                                | Parallel crawl limit               |
 | `skip_crawl`           | `false`                            | Skip crawling, reuse existing files|
 | `model`                | `arcee-ai/trinity-large-preview:free` | OpenRouter model to use         |
+| `crwl_command`         | `crwl`                             | must install Crwl mentioned below in [What is crwl?](#what-is-crwl)|
 
 ## Project Structure
 
@@ -82,3 +83,42 @@ tests/                 # unit and integration tests
 output/                # generated at runtime (crawled, parsed, final JSON)
 specs/                 # application specification
 ```
+ 
+ ## Crawler of Choice 
+
+ ### What is crwl?
+
+ crwl is the command-line interface for crawl4ai
+ (https://github.com/unclecode/crawl4ai) — an open-source AI-friendly web crawler.
+ It:
+ - Launches a headless Chromium browser (via Playwright) to load JavaScript-heavy
+ pages
+ - Converts the page content to clean Markdown that LLMs can easily read
+ - Usage: crwl crawl <url> -o markdown
+
+ That's exactly what the auto-scheduler needed — most of those Meetup.com and Luma
+ pages don't work with a simple HTTP fetch because they render content via
+ JavaScript.
+
+ The crwl name on PyPI is actually a completely unrelated package (some random
+ Korean project). crwl as a CLI lives inside the crawl4ai package.
+
+ ### How I installed it
+
+ Three steps:
+
+ 1. Installed uv (the Python package manager the project requires) via the official
+ installer:
+   ```bash
+     curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+ 2. Installed crawl4ai as a uv tool — this makes crwl available globally as a CLI
+ command:
+   ```bash
+     uv tool install crawl4ai
+   ```
+ 3. Downloaded Chromium (the headless browser crwl drives under the hood):
+   ```bash
+     uvx playwright install chromium
+   ```
+
